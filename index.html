@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WISIMCO — Portfolio Trade Analysis</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: #f4f4f4; color: #1a1a1a; min-height: 100vh; }
+  .header { background: #C5050C; padding: 14px 32px; display: flex; align-items: center; justify-content: space-between; border-bottom: 4px solid #9b0309; }
+  .header-logo { height: 54px; width: auto; display: block; }
+  .header-right { text-align: right; }
+  .header-report-title { font-size: 15px; font-weight: 600; color: #fff; }
+  .header-date { font-size: 11px; color: rgba(255,255,255,0.75); margin-top: 3px; }
+  .tabs { display: flex; background: #1a1a1a; padding: 0 32px; }
+  .tab { padding: 11px 26px; font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.5); cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.15s; letter-spacing: 0.02em; }
+  .tab:hover { color: rgba(255,255,255,0.85); }
+  .tab.active { color: #fff; border-bottom-color: #C5050C; }
+  .content { padding: 22px 32px; max-width: 1200px; margin: 0 auto; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .metrics { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; margin-bottom: 20px; }
+  .metric { background: #fff; border-radius: 8px; padding: 13px 16px; border: 0.5px solid #ddd; border-top: 3px solid #C5050C; }
+  .metric .mlabel { font-size: 10px; color: #888; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.07em; }
+  .metric .mvalue { font-size: 21px; font-weight: 700; color: #1a1a1a; }
+  .metric .msub   { font-size: 11px; color: #aaa; margin-top: 2px; }
+  .mvalue.green { color: #2d6a0a; }
+  .mvalue.red   { color: #C5050C; }
+  .chart-card { background: #fff; border-radius: 8px; border: 0.5px solid #ddd; padding: 18px 22px; margin-bottom: 18px; }
+  .chart-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+  .chart-title { font-size: 14px; font-weight: 700; color: #1a1a1a; text-transform: uppercase; letter-spacing: 0.05em; }
+  .chart-sub   { font-size: 11px; color: #999; margin-top: 3px; }
+  .chart-wrap  { position: relative; width: 100%; height: 340px; }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #555; }
+  .legend-dot  { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .legend-line { width: 16px; height: 2px; display: inline-block; border-radius: 1px; }
+  .trade-panel { background: #f8f8f8; border: 0.5px solid #e0e0e0; border-left: 3px solid #C5050C; border-radius: 0 6px 6px 0; padding: 12px 16px; margin-top: 12px; min-height: 50px; font-size: 13px; color: #999; }
+  .t-header { font-size: 13px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px; display: flex; align-items: baseline; gap: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .t-price  { font-size: 13px; font-weight: 600; color: #6b6b6b; }
+  .trade-row { display: grid; grid-template-columns: 40px 1fr auto; align-items: start; gap: 10px; padding: 8px 10px; border-radius: 5px; margin-bottom: 5px; }
+  .trade-row:last-child { margin-bottom: 0; }
+  .trade-row.buy  { background: #eaf3de; border-left: 3px solid #639922; }
+  .trade-row.sell { background: #fce8e8; border-left: 3px solid #C5050C; }
+  .t-type { font-weight: 800; font-size: 10px; letter-spacing: 0.06em; padding-top: 2px; }
+  .trade-row.buy  .t-type { color: #2d6a0a; }
+  .trade-row.sell .t-type { color: #C5050C; }
+  .t-main { display: flex; flex-direction: column; gap: 2px; }
+  .t-amt  { font-weight: 700; font-size: 12px; color: #1a1a1a; }
+  .t-desc { font-size: 11px; color: #555; }
+  .t-acct { font-size: 10px; color: #999; }
+  .t-right { text-align: right; }
+  .t-posval       { font-size: 13px; font-weight: 700; color: #C5050C; white-space: nowrap; }
+  .t-posval-label { font-size: 10px; color: #aaa; margin-top: 1px; }
+  .t-posshares    { font-size: 10px; color: #aaa; }
+  .trades-table { background: #fff; border-radius: 8px; border: 0.5px solid #ddd; overflow: hidden; }
+  .trades-table table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .trades-table th { background: #1a1a1a; color: #fff; padding: 9px 11px; text-align: left; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+  .trades-table td { padding: 7px 11px; border-bottom: 0.5px solid #f0f0f0; vertical-align: middle; }
+  .trades-table tr:last-child td { border-bottom: none; }
+  .trades-table tr.buy-row  td { background: #f7fbf2; }
+  .trades-table tr.sell-row td { background: #fef5f5; }
+  .badge { display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; }
+  .badge.buy  { background: #eaf3de; color: #2d6a0a; }
+  .badge.sell { background: #fce8e8; color: #C5050C; }
+  .pos-val-cell { font-weight: 700; color: #C5050C; }
+  .footer { background: #1a1a1a; color: rgba(255,255,255,0.4); text-align: center; font-size: 10px; padding: 10px 32px; margin-top: 8px; letter-spacing: 0.04em; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div><img class="header-logo" src="data:image/png;base64,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" alt="WISIMCO" /></div>
+  <div class="header-right">
+    <div class="header-report-title">Portfolio Trade Analysis</div>
+    <div class="header-date">Sea Limited &nbsp;·&nbsp; Flutter Entertainment &nbsp;·&nbsp; Zillow Group &nbsp;·&nbsp; As of April 2026</div>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('se',   this)">SE &nbsp;·&nbsp; Sea Limited</div>
+  <div class="tab"        onclick="switchTab('flut', this)">FLUT &nbsp;·&nbsp; Flutter</div>
+  <div class="tab"        onclick="switchTab('z',    this)">Z &nbsp;·&nbsp; Zillow</div>
+</div>
+
+<div class="content">
+
+<div id="panel-se" class="panel active">
+  <div class="metrics">
+    <div class="metric"><div class="mlabel">All-time high</div><div class="mvalue">$367</div><div class="msub">Oct 2021</div></div>
+    <div class="metric"><div class="mlabel">Recent low</div><div class="mvalue">$38.70</div><div class="msub">Oct 2023</div></div>
+    <div class="metric"><div class="mlabel">Total buys</div><div class="mvalue green">$51.5M</div><div class="msub">6 transactions</div></div>
+    <div class="metric"><div class="mlabel">Total sells</div><div class="mvalue red">$55.0M</div><div class="msub">9 transactions</div></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-header">
+      <div><div class="chart-title">Sea Limited (SE US) — Monthly Close Price</div><div class="chart-sub">Apr 2021 – Mar 2026 &nbsp;·&nbsp; Click a marker to see trade details &amp; position value</div></div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-line" style="background:#6b6b6b;"></span>Price</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#eaf3de;border:2px solid #639922;"></span>Buy</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#fce8e8;border:2px solid #C5050C;"></span>Sell</div>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="chartSE"></canvas></div>
+    <div id="tp-se" class="trade-panel">Click a <strong style="color:#2d6a0a">green</strong> or <strong style="color:#C5050C">red</strong> marker to see trade details and position value.</div>
+  </div>
+  <div class="trades-table"><table>
+    <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Description</th><th>Account</th><th>Est. Shares Δ</th><th>Shares Held</th><th>Price</th><th>Position Value</th></tr></thead>
+    <tbody id="tbl-se"></tbody>
+  </table></div>
+</div>
+
+<div id="panel-flut" class="panel">
+  <div class="metrics">
+    <div class="metric"><div class="mlabel">52-week high</div><div class="mvalue">$299.73</div><div class="msub">Feb 2025</div></div>
+    <div class="metric"><div class="mlabel">52-week low</div><div class="mvalue">$175.59</div><div class="msub">Aug 2024</div></div>
+    <div class="metric"><div class="mlabel">Total buys</div><div class="mvalue green">$56.0M</div><div class="msub">4 transactions</div></div>
+    <div class="metric"><div class="mlabel">Total sells</div><div class="mvalue red">$15.0M</div><div class="msub">2 transactions</div></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-header">
+      <div><div class="chart-title">Flutter Entertainment (FLUT US) — Monthly Close Price</div><div class="chart-sub">Jan 2022 – Mar 2026 &nbsp;·&nbsp; Click a marker to see trade details &amp; position value &nbsp;·&nbsp; Pre-2024 converted from FLTR.LN</div></div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-line" style="background:#6b6b6b;"></span>Price</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#eaf3de;border:2px solid #639922;"></span>Buy</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#fce8e8;border:2px solid #C5050C;"></span>Sell</div>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="chartFLUT"></canvas></div>
+    <div id="tp-flut" class="trade-panel">Click a <strong style="color:#2d6a0a">green</strong> or <strong style="color:#C5050C">red</strong> marker to see trade details and position value.</div>
+  </div>
+  <div class="trades-table"><table>
+    <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Description</th><th>Account</th><th>Est. Shares Δ</th><th>Shares Held</th><th>Price</th><th>Position Value</th></tr></thead>
+    <tbody id="tbl-flut"></tbody>
+  </table></div>
+</div>
+
+<div id="panel-z" class="panel">
+  <div class="metrics">
+    <div class="metric"><div class="mlabel">All-time high</div><div class="mvalue">$199.90</div><div class="msub">Feb 2021</div></div>
+    <div class="metric"><div class="mlabel">Recent low</div><div class="mvalue">$52.86</div><div class="msub">Sep 2024</div></div>
+    <div class="metric"><div class="mlabel">Total buys</div><div class="mvalue green">$30.0M</div><div class="msub">3 transactions</div></div>
+    <div class="metric"><div class="mlabel">Total sells</div><div class="mvalue red">$5.0M</div><div class="msub">1 transaction</div></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-header">
+      <div><div class="chart-title">Zillow Group (Z US) — Monthly Close Price</div><div class="chart-sub">Jan 2022 – Mar 2026 &nbsp;·&nbsp; Click a marker to see trade details &amp; position value</div></div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-line" style="background:#6b6b6b;"></span>Price</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#eaf3de;border:2px solid #639922;"></span>Buy</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#fce8e8;border:2px solid #C5050C;"></span>Sell</div>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="chartZ"></canvas></div>
+    <div id="tp-z" class="trade-panel">Click a <strong style="color:#2d6a0a">green</strong> or <strong style="color:#C5050C">red</strong> marker to see trade details and position value.</div>
+  </div>
+  <div class="trades-table"><table>
+    <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Description</th><th>Account</th><th>Est. Shares Δ</th><th>Shares Held</th><th>Price</th><th>Position Value</th></tr></thead>
+    <tbody id="tbl-z"></tbody>
+  </table></div>
+</div>
+
+</div>
+<div class="footer">UNIVERSITY OF WISCONSIN FOUNDATION &nbsp;·&nbsp; WISIMCO &nbsp;·&nbsp; CONFIDENTIAL &nbsp;·&nbsp; FOR INTERNAL USE ONLY</div>
+
+<script>
+function switchTab(id, el) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  el.classList.add('active');
+}
+function fmtM(n) {
+  const abs = Math.abs(n);
+  const s = abs >= 1e6 ? '$' + (abs/1e6).toFixed(1) + 'M' : '$' + Math.round(abs).toLocaleString();
+  return n < 0 ? '-' + s : s;
+}
+function fmtN(n) { return n.toLocaleString(); }
+
+const sePrices = [
+  {d:"Apr-21",p:220.50},{d:"May-21",p:248.30},{d:"Jun-21",p:270.80},{d:"Jul-21",p:298.40},
+  {d:"Aug-21",p:318.60},{d:"Sep-21",p:339.10},{d:"Oct-21",p:366.99},{d:"Nov-21",p:295.20},
+  {d:"Dec-21",p:221.60},{d:"Jan-22",p:175.40},{d:"Feb-22",p:147.80},{d:"Mar-22",p:133.50},
+  {d:"Apr-22",p:103.20},{d:"May-22",p:87.50},{d:"Jun-22",p:75.80},{d:"Jul-22",p:88.40},
+  {d:"Aug-22",p:78.20},{d:"Sep-22",p:56.30},{d:"Oct-22",p:58.90},{d:"Nov-22",p:65.40},
+  {d:"Dec-22",p:53.80},{d:"Jan-23",p:72.60},{d:"Feb-23",p:79.30},{d:"Mar-23",p:82.50},
+  {d:"Apr-23",p:75.20},{d:"May-23",p:68.40},{d:"Jun-23",p:74.10},{d:"Jul-23",p:84.50},
+  {d:"Aug-23",p:78.30},{d:"Sep-23",p:71.90},{d:"Oct-23",p:38.70},{d:"Nov-23",p:44.20},
+  {d:"Dec-23",p:48.90},{d:"Jan-24",p:47.30},{d:"Feb-24",p:56.80},{d:"Mar-24",p:62.40},
+  {d:"Apr-24",p:59.10},{d:"May-24",p:71.20},{d:"Jun-24",p:78.50},{d:"Jul-24",p:85.30},
+  {d:"Aug-24",p:92.40},{d:"Sep-24",p:98.60},{d:"Oct-24",p:88.20},{d:"Nov-24",p:103.70},
+  {d:"Dec-24",p:115.80},{d:"Jan-25",p:121.40},{d:"Feb-25",p:132.60},{d:"Mar-25",p:145.20},
+  {d:"Apr-25",p:158.30},{d:"May-25",p:168.90},{d:"Jun-25",p:175.40},{d:"Jul-25",p:185.60},
+  {d:"Aug-25",p:192.30},{d:"Sep-25",p:182.10},{d:"Oct-25",p:171.50},{d:"Nov-25",p:156.80},
+  {d:"Dec-25",p:142.30},{d:"Jan-26",p:108.40},{d:"Feb-26",p:92.10},{d:"Mar-26",p:78.16}
+];
+const seTrades = [
+  {date:"Jan-22",type:"buy", amount:20000000.00,desc:"Initial Funding | 129,207 shs @ $154.79",acct:"Commingled/LP", sharesD:129207,sharesAfter:129207, px:175.40,posVal:22662908},
+  {date:"May-22",type:"buy", amount:5000000.00, desc:"Additional Contribution",                acct:"Commingled/LP", sharesD:57143, sharesAfter:186350, px:87.50, posVal:16305625},
+  {date:"Sep-23",type:"buy", amount:3000000.00, desc:"Tranche #3",                             acct:"Commingled/LP", sharesD:41725, sharesAfter:228075, px:71.90, posVal:16398593},
+  {date:"Feb-24",type:"buy", amount:8000000.00, desc:"Contribution #4",                        acct:"Commingled/LP", sharesD:140845,sharesAfter:368920, px:56.80, posVal:20954656},
+  {date:"Oct-24",type:"sell",amount:10105727.20,desc:"SE US Sale",                             acct:"UWF Direct",    sharesD:114577,sharesAfter:254343, px:88.20, posVal:22433053},
+  {date:"Oct-24",type:"sell",amount:4957847.14, desc:"Sale of SE",                             acct:"UWF Direct",    sharesD:56211, sharesAfter:198132, px:88.20, posVal:17475242},
+  {date:"Feb-25",type:"sell",amount:9927489.71, desc:"Sell shares short",                      acct:"Morgan Stanley",sharesD:74868, sharesAfter:123264, px:132.60,posVal:16344806},
+  {date:"Feb-25",type:"buy", amount:9214104.75, desc:"Cover SE Short in full",                 acct:"Morgan Stanley",sharesD:69488, sharesAfter:192752, px:132.60,posVal:25558915},
+  {date:"Mar-25",type:"sell",amount:10000000.00,desc:"Partial Redemption",                     acct:"Commingled/LP", sharesD:68871, sharesAfter:123881, px:145.20,posVal:17987521},
+  {date:"Aug-25",type:"sell",amount:10027876.90,desc:"Sell SE US Short",                       acct:"Morgan Stanley",sharesD:52147, sharesAfter:71734,  px:192.30,posVal:13794448},
+  {date:"Oct-25",type:"sell",amount:5000000.00, desc:"Partial Redemption",                     acct:"Commingled/LP", sharesD:29155, sharesAfter:42579,  px:171.50,posVal:7302298},
+  {date:"Oct-25",type:"buy", amount:5373249.28, desc:"Cover Short - buy (1 of 2)",             acct:"Morgan Stanley",sharesD:31331, sharesAfter:73910,  px:171.50,posVal:12675565},
+  {date:"Oct-25",type:"buy", amount:4861830.33, desc:"Cover Short - buy (2 of 2)",             acct:"Morgan Stanley",sharesD:28349, sharesAfter:102259, px:171.50,posVal:17537418},
+  {date:"Nov-25",type:"sell",amount:5000000.00, desc:"Partial Redemption",                     acct:"Commingled/LP", sharesD:31888, sharesAfter:70371,  px:156.80,posVal:11034173},
+  {date:"Jan-26",type:"buy", amount:5011312.51, desc:"Sea shares direct",                      acct:"Commingled/LP", sharesD:46230, sharesAfter:116601, px:108.40,posVal:12639548},
+];
+const flutPrices = [
+  {d:"Jan-22",p:112.40},{d:"Feb-22",p:108.20},{d:"Mar-22",p:102.80},{d:"Apr-22",p:98.50},
+  {d:"May-22",p:96.10},{d:"Jun-22",p:91.30},{d:"Jul-22",p:95.60},{d:"Aug-22",p:103.20},
+  {d:"Sep-22",p:98.80},{d:"Oct-22",p:106.40},{d:"Nov-22",p:112.70},{d:"Dec-22",p:118.50},
+  {d:"Jan-23",p:124.30},{d:"Feb-23",p:131.60},{d:"Mar-23",p:138.20},{d:"Apr-23",p:145.80},
+  {d:"May-23",p:152.40},{d:"Jun-23",p:158.90},{d:"Jul-23",p:164.20},{d:"Aug-23",p:170.50},
+  {d:"Sep-23",p:165.80},{d:"Oct-23",p:172.40},{d:"Nov-23",p:180.60},{d:"Dec-23",p:188.20},
+  {d:"Jan-24",p:192.50},{d:"Feb-24",p:205.30},{d:"Mar-24",p:215.80},{d:"Apr-24",p:208.40},
+  {d:"May-24",p:198.70},{d:"Jun-24",p:188.30},{d:"Jul-24",p:181.20},{d:"Aug-24",p:175.59},
+  {d:"Sep-24",p:183.40},{d:"Oct-24",p:192.80},{d:"Nov-24",p:210.40},{d:"Dec-24",p:228.60},
+  {d:"Jan-25",p:248.30},{d:"Feb-25",p:299.73},{d:"Mar-25",p:278.40},{d:"Apr-25",p:262.10},
+  {d:"May-25",p:248.70},{d:"Jun-25",p:238.50},{d:"Jul-25",p:228.30},{d:"Aug-25",p:218.60},
+  {d:"Sep-25",p:226.40},{d:"Oct-25",p:235.80},{d:"Nov-25",p:244.20},{d:"Dec-25",p:238.50},
+  {d:"Jan-26",p:228.40},{d:"Feb-26",p:218.30},{d:"Mar-26",p:224.50}
+];
+const flutTrades = [
+  {date:"Jan-22",type:"buy", amount:20000000,desc:"Initial Funding",               acct:"Commingled/LP",sharesD:177936,sharesAfter:177936,px:112.40,posVal:20000006},
+  {date:"May-22",type:"buy", amount:5000000, desc:"Tranche #2",                    acct:"Commingled/LP",sharesD:52029, sharesAfter:229965,px:96.10, posVal:22099636},
+  {date:"Apr-25",type:"sell",amount:5000000, desc:"Partial Redemption",            acct:"Commingled/LP",sharesD:19077, sharesAfter:210888,px:262.10,posVal:55273745},
+  {date:"Oct-25",type:"sell",amount:10000000,desc:"Partial Redemption",            acct:"Commingled/LP",sharesD:42409, sharesAfter:168479,px:235.80,posVal:39727348},
+  {date:"Dec-25",type:"buy", amount:6000000, desc:"Contribution",                  acct:"Commingled/LP",sharesD:25157, sharesAfter:193636,px:238.50,posVal:46182186},
+  {date:"Feb-26",type:"buy", amount:5000000, desc:"Caledonia Flutter Contribution",acct:"Commingled/LP",sharesD:22904, sharesAfter:216540,px:218.30,posVal:47270682},
+];
+const zPrices = [
+  {d:"Jan-22",p:58.40},{d:"Feb-22",p:52.30},{d:"Mar-22",p:48.60},{d:"Apr-22",p:42.10},
+  {d:"May-22",p:34.80},{d:"Jun-22",p:30.20},{d:"Jul-22",p:35.40},{d:"Aug-22",p:38.20},
+  {d:"Sep-22",p:32.80},{d:"Oct-22",p:30.10},{d:"Nov-22",p:34.60},{d:"Dec-22",p:31.50},
+  {d:"Jan-23",p:38.20},{d:"Feb-23",p:42.80},{d:"Mar-23",p:46.30},{d:"Apr-23",p:48.90},
+  {d:"May-23",p:52.40},{d:"Jun-23",p:57.80},{d:"Jul-23",p:60.20},{d:"Aug-23",p:56.40},
+  {d:"Sep-23",p:51.80},{d:"Oct-23",p:46.20},{d:"Nov-23",p:52.60},{d:"Dec-23",p:58.30},
+  {d:"Jan-24",p:63.41},{d:"Feb-24",p:68.20},{d:"Mar-24",p:72.40},{d:"Apr-24",p:68.10},
+  {d:"May-24",p:62.80},{d:"Jun-24",p:58.40},{d:"Jul-24",p:55.20},{d:"Aug-24",p:53.40},
+  {d:"Sep-24",p:52.86},{d:"Oct-24",p:55.30},{d:"Nov-24",p:62.40},{d:"Dec-24",p:32.21},
+  {d:"Jan-25",p:72.40},{d:"Feb-25",p:89.39},{d:"Mar-25",p:82.60},{d:"Apr-25",p:76.80},
+  {d:"May-25",p:71.40},{d:"Jun-25",p:68.20},{d:"Jul-25",p:65.40},{d:"Aug-25",p:61.80},
+  {d:"Sep-25",p:58.40},{d:"Oct-25",p:55.20},{d:"Nov-25",p:52.60},{d:"Dec-25",p:49.80},
+  {d:"Jan-26",p:46.40},{d:"Feb-26",p:43.20},{d:"Mar-26",p:44.82}
+];
+const zTrades = [
+  {date:"Jan-22",type:"buy", amount:20000000,desc:"Initial Funding",         acct:"Commingled/LP",sharesD:342466,sharesAfter:342466,px:58.40,posVal:20000014},
+  {date:"May-23",type:"buy", amount:5000000, desc:"Additional Contribution", acct:"Commingled/LP",sharesD:95420, sharesAfter:437886,px:52.40,posVal:22945226},
+  {date:"Aug-24",type:"buy", amount:5000000, desc:"Additional Contribution", acct:"Commingled/LP",sharesD:93633, sharesAfter:531519,px:53.40,posVal:28383115},
+  {date:"Apr-25",type:"sell",amount:5000000, desc:"Partial Redemption",      acct:"Commingled/LP",sharesD:65104, sharesAfter:466415,px:76.80,posVal:35820672},
+];
+
+function buildChart(canvasId, prices, trades, tpId) {
+  const lineColor = '#6b6b6b';
+  const labels = prices.map(x => x.d);
+  const vals   = prices.map(x => x.p);
+  const buyArr  = Array(labels.length).fill(null);
+  const sellArr = Array(labels.length).fill(null);
+  labels.forEach((d, i) => {
+    if (trades.some(t => t.date === d && t.type === 'buy'))  buyArr[i]  = vals[i];
+    if (trades.some(t => t.date === d && t.type === 'sell')) sellArr[i] = vals[i];
+  });
+  const chart = new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: { labels, datasets: [
+      {label:'Price',data:vals,borderColor:lineColor,backgroundColor:'rgba(107,107,107,0.07)',fill:true,tension:0.3,pointRadius:0,borderWidth:2.5,order:3},
+      {label:'Buy',data:buyArr,type:'scatter',pointRadius:11,pointHoverRadius:14,backgroundColor:'#eaf3de',borderColor:'#639922',borderWidth:2.5,order:1,showLine:false},
+      {label:'Sell',data:sellArr,type:'scatter',pointRadius:11,pointHoverRadius:14,backgroundColor:'#fce8e8',borderColor:'#C5050C',borderWidth:2.5,order:2,showLine:false}
+    ]},
+    options: {
+      responsive:true,maintainAspectRatio:false,animation:false,
+      plugins:{legend:{display:false},tooltip:{enabled:false}},
+      scales:{
+        x:{ticks:{font:{size:11},color:'#999',maxRotation:45,autoSkip:true,maxTicksLimit:14},grid:{color:'rgba(0,0,0,0.04)'}},
+        y:{ticks:{font:{size:11},color:'#999',callback:v=>'$'+v},grid:{color:'rgba(0,0,0,0.04)'},title:{display:true,text:'Price (USD)',font:{size:11},color:'#bbb'}}
+      }
+    }
+  });
+  const canvas = document.getElementById(canvasId);
+  const tp = document.getElementById(tpId);
+  canvas.addEventListener('click', function(e) {
+    const pts = chart.getElementsAtEventForMode(e,'nearest',{intersect:true},false);
+    if (!pts.length) return;
+    const idx = pts[0].index;
+    const label = labels[idx];
+    const price = vals[idx];
+    const ts = trades.filter(t => t.date === label);
+    if (!ts.length) return;
+    let html = '<div class="t-header">' + label + ' <span class="t-price">$' + price.toFixed(2) + '</span></div>';
+    ts.forEach(t => {
+      const amtStr = '$' + t.amount.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+      html += '<div class="trade-row ' + t.type + '">'
+        + '<div><div class="t-type">' + t.type.toUpperCase() + '</div></div>'
+        + '<div class="t-main"><div class="t-amt">' + amtStr + '</div><div class="t-desc">' + t.desc + '</div><div class="t-acct">' + t.acct + '</div></div>'
+        + '<div class="t-right"><div class="t-posval">' + fmtM(t.posVal) + '</div><div class="t-posval-label">position value</div><div class="t-posshares">' + fmtN(t.sharesAfter) + ' shs held</div></div>'
+        + '</div>';
+    });
+    tp.innerHTML = html;
+  });
+  canvas.addEventListener('mousemove', function(e) {
+    const pts = chart.getElementsAtEventForMode(e,'nearest',{intersect:true},false);
+    canvas.style.cursor = pts.length ? 'pointer' : 'default';
+  });
+}
+
+function buildTable(tbodyId, trades) {
+  const tbody = document.getElementById(tbodyId);
+  trades.forEach(t => {
+    const tr = document.createElement('tr');
+    tr.className = t.type === 'buy' ? 'buy-row' : 'sell-row';
+    const amtStr = '$' + t.amount.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+    tr.innerHTML =
+      '<td style="white-space:nowrap;font-weight:600">' + t.date + '</td>'
+      + '<td><span class="badge ' + t.type + '">' + t.type.toUpperCase() + '</span></td>'
+      + '<td style="font-weight:600;color:' + (t.type==='buy'?'#2d6a0a':'#C5050C') + '">' + (t.type==='buy'?'+':'−') + amtStr + '</td>'
+      + '<td>' + t.desc + '</td>'
+      + '<td style="color:#888">' + t.acct + '</td>'
+      + '<td style="text-align:right;color:#777">' + (t.type==='buy'?'+':'−') + fmtN(t.sharesD) + '</td>'
+      + '<td style="text-align:right;font-weight:700">' + fmtN(t.sharesAfter) + '</td>'
+      + '<td style="text-align:right;color:#777">$' + t.px.toFixed(2) + '</td>'
+      + '<td class="pos-val-cell" style="text-align:right">' + fmtM(t.posVal) + '</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+buildChart('chartSE',   sePrices,   seTrades,   'tp-se');
+buildChart('chartFLUT', flutPrices, flutTrades, 'tp-flut');
+buildChart('chartZ',    zPrices,    zTrades,    'tp-z');
+buildTable('tbl-se',   seTrades);
+buildTable('tbl-flut', flutTrades);
+buildTable('tbl-z',    zTrades);
+</script>
+</body>
+</html>
